@@ -59,7 +59,7 @@ jobs:
   finalize:
     name: Finalize
     needs: [prepare-deployment, deploy]
-    if: ${{ always() && github.event.label.name == 'build-test-image' }}
+    if: ${{ always() && github.event.label.name == format('build-test-{}', needs.prepare-deployment.outputs.environment_name) }}
     runs-on: ubuntu-latest
     steps:
       # Always remove the `build-test-image` label at the end (even on failure)
