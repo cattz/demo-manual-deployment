@@ -56,3 +56,14 @@ jobs:
       - name: Update Fargate Service
         run: |
           echo "aws ecs update-service --cluster ..."
+  finalize:
+    name: Finalize
+    needs: [prepare-deployment, deploy]
+    if: ${{ always() && github.event.label.name == 'build-test-image' }}
+    runs-on: ubuntu-latest
+    steps:
+      # Always remove the `build-test-image` label at the end (even on failure)
+      - name: Remove `build-test-` label
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          labels: build-test-${{ needs.prepare-deployment.outputs.environment_name }}
