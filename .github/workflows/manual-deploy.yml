@@ -1,0 +1,55 @@
+name: Manual Deployment Workflow
+
+on:
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: backend
+
+jobs:
+
+  prepare-deployment:
+    runs-on: ubuntu-latest
+    if: ${{ startswith(github.event.label.name,'build-deploy-') }}
+    steps:
+      - name: Prepare deployment
+        id: prepare-deployment
+        run: |
+          echo "environment_name=${{ github.event.label.name | replace('build-deploy-','') }}" >> $GITHUB_OUTPUT
+          echo "Environment: ${{ github.event.label.name | replace('build-deploy-','') }}"
+        outputs:
+          environment_name: ${{ steps.prepare-deployment.outputs.environment_name }}
+
+  deploy:
+    needs: prepare-deployment
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.prepare-deployment.outputs.environment_name }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+#      - name: Configure AWS Credentials via OIDC
+#        uses: aws-actions/configure-aws-credentials@v2
+#        with:
+#          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}  # Ensure this is defined in your environment
+#          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        run: |
+          echo aws ecr get-login-password --region ${{ vars.AWS_REGION }} \| docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+
+      - name: Build and Tag Docker Image
+        run: |
+          echo docker build -t ${{ secrets.REPO_NAME }}:${{ github.sha }} .
+          echo docker tag ${{ secrets.REPO_NAME }}:${{ github.sha }} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ secrets.REPO_NAME }}:${{ github.sha }}
+          echo docker tag ${{ secrets.REPO_NAME }}:${{ github.sha }} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ secrets.REPO_NAME }}:latest
+
+      - name: Push Docker Images to ECR
+        run: |
+          echo docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ secrets.REPO_NAME }}:${{ github.sha }}
+          echo docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ secrets.REPO_NAME }}:latest
+
+      - name: Update Fargate Service
+        run: |
+          echo aws ecs update-service --cluster <cluster_name> --service <service_name> --force-new-deployment
