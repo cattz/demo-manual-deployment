@@ -1,6 +1,8 @@
 name: Manual Deployment Workflow
 
 on:
+  pull_request:
+    types: [ labeled ]
   workflow_dispatch:
 
 env:
@@ -15,10 +17,11 @@ jobs:
       - name: Prepare deployment
         id: prepare-deployment
         run: |
-          echo "environment_name=${{ github.event.label.name | replace('build-deploy-','') }}" >> $GITHUB_OUTPUT
-          echo "Environment: ${{ github.event.label.name | replace('build-deploy-','') }}"
-        outputs:
-          environment_name: ${{ steps.prepare-deployment.outputs.environment_name }}
+          label=${{ github.event.label.name }}
+          echo "environment_name=${label#build-deploy-}" >> $GITHUB_OUTPUT
+          echo "Environment: ${label#build-deploy-}"
+    outputs:
+      environment_name: ${{ steps.prepare-deployment.outputs.environment_name }}
 
   deploy:
     needs: prepare-deployment
@@ -52,4 +55,4 @@ jobs:
 
       - name: Update Fargate Service
         run: |
-          echo aws ecs update-service --cluster <cluster_name> --service <service_name> --force-new-deployment
+          echo "aws ecs update-service --cluster ..."
